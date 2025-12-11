@@ -1,0 +1,84 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: ci-cd-pipeline
+spec:
+  params:
+    - name: app-name
+      description: Application name
+      type: string
+    - name: build-image
+      description: Build image name
+      type: string
+    - name: git-url
+      description: Git repository URL
+      type: string
+    - name: git-revision
+      description: Git revision
+      type: string
+      default: main
+  workspaces:
+    - name: output
+      description: Workspace for source code
+  tasks:
+    - name: cleanup
+      taskRef:
+        name: cleanup
+      workspaces:
+        - name: source
+          workspace: output
+    - name: git-clone
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      runAfter:
+        - cleanup
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.git-revision)
+      workspaces:
+        - name: output
+          workspace: output
+    - name: flake8-lint
+      taskRef:
+        name: flake8
+      runAfter:
+        - git-clone
+      workspaces:
+        - name: source
+          workspace: output
+    - name: nose-tests
+      taskRef:
+        name: nose
+      runAfter:
+        - flake8-lint
+      workspaces:
+        - name: source
+          workspace: output
+    - name: buildah-build
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: $(params.build-image)
+        - name: DOCKERFILE
+          value: Dockerfile
+      workspaces:
+        - name: source
+          workspace: output
+      runAfter:
+        - nose-tests
+    - name: oc-deploy
+      taskRef:
+        name: openshift-client
+        kind: ClusterTask
+      params:
+        - name: SCRIPT
+          value: |
+            oc create deployment $(params.app-name) --image=$(params.build-image) --dry-run=client -o yaml | oc apply -f -
+      runAfter:
+        - buildah-build
+
