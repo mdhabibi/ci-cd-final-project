@@ -5,9 +5,45 @@ echo "=========================================="
 echo "Setting up OpenShift CD Pipeline"
 echo "=========================================="
 
+# Check prerequisites
+echo "Checking prerequisites..."
+
+# Check for oc command
+if ! command -v oc &> /dev/null; then
+    echo "✗ Error: 'oc' command not found"
+    echo "  This script must be run in an OpenShift lab environment"
+    echo "  Please run this script from your OpenShift Cloud IDE terminal"
+    exit 1
+fi
+
+# Check for kubectl command
+if ! command -v kubectl &> /dev/null; then
+    echo "✗ Error: 'kubectl' command not found"
+    echo "  This script must be run in an OpenShift lab environment"
+    exit 1
+fi
+
+# Check cluster connection
+if ! oc cluster-info &> /dev/null; then
+    echo "✗ Error: Not connected to an OpenShift cluster"
+    echo "  Please ensure you are logged into your OpenShift cluster:"
+    echo "  oc login <cluster-url>"
+    exit 1
+fi
+
+echo "✓ Prerequisites check passed"
+echo ""
+
 # Get current namespace
-NAMESPACE=$(oc project -q)
-echo "Current namespace: $NAMESPACE"
+NAMESPACE=$(oc project -q 2>/dev/null)
+if [ -z "$NAMESPACE" ]; then
+    echo "⚠ Warning: Could not determine current namespace"
+    echo "  Please ensure you are in the correct project:"
+    echo "  oc project <your-project-name>"
+    read -p "Press Enter to continue anyway, or Ctrl+C to exit..."
+else
+    echo "Current namespace: $NAMESPACE"
+fi
 
 # Step 1: Install Tekton Tasks
 echo ""
